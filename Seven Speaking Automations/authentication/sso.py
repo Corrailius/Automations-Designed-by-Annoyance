@@ -1,7 +1,8 @@
+import selenium.webdriver.support.ui
+from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.support.ui import WebDriverWait
 
 
 class SSO:
@@ -10,8 +11,21 @@ class SSO:
         self.email = email
         self.password = password
 
+    def reject_cookies(self):
+        wait = selenium.webdriver.support.ui.WebDriverWait(self.driver, 5)
+
+        try:
+            reject_button = wait.until(
+                EC.element_to_be_clickable((By.ID, "cky-btn-reject"))
+            )
+
+            reject_button.click()
+
+        except TimeoutException:
+            pass
+
     def login(self):
-        wait = WebDriverWait(self.driver, 30)
+        wait = selenium.webdriver.support.ui.WebDriverWait(self.driver, 30)
 
         print("Waiting for username field...")
 
@@ -53,9 +67,9 @@ class SSO:
         print("Waiting for 7Speaking...")
 
         wait.until(
-            EC.visibility_of_element_located(
-                (By.CSS_SELECTOR, 'img[alt="Level_badge"]')
-            )
+            EC.presence_of_element_located((By.CSS_SELECTOR, "img[alt='Level_badge']"))
         )
+
+        self.reject_cookies()
 
         print("Authentication successful.")
