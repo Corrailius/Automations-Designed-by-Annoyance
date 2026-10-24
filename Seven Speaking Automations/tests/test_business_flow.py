@@ -44,7 +44,7 @@ def make_ctx():
         ensure_window=lambda: None,
     )
     runner = SimpleNamespace(solved=[])
-    runner.solve = lambda payload: runner.solved.append(payload)
+    runner.solve = lambda payload, retake=False: runner.solved.append(payload)
     quiz_data = SimpleNamespace(
         arm=lambda: None, get_payload=lambda timeout=0: {"questions": {"data": []}}
     )

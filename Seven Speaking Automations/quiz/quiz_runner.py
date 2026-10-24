@@ -28,8 +28,12 @@ class QuizRunner:
     # ------------------------------------------------------------------
     # Main loop
     # ------------------------------------------------------------------
-    def solve(self, quiz):
-        """Solve a quiz. `quiz` is the quiz.cfc payload (or a list of questions)."""
+    def solve(self, quiz, retake=False):
+        """Solve a quiz. `quiz` is the quiz.cfc payload (or a list of questions).
+
+        `retake=True` replays an already completed quiz: the saved answers of the
+        previous attempt are ignored and every question is answered again.
+        """
         payload = quiz if isinstance(quiz, dict) else {"questions": {"data": quiz}}
         questions = payload["questions"]["data"]
         total = len(questions)
@@ -55,7 +59,7 @@ class QuizRunner:
 
             previous_title = self.current_title()
 
-            if self._already_answered(question):
+            if not retake and self._already_answered(question):
                 print("Already answered earlier, moving on.")
                 self._click_next()
                 summary["skipped"] += 1

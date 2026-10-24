@@ -1,7 +1,8 @@
 """The three automation flows: grammar, business skills, news-based lessons."""
 
+import random
 import traceback
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from config import settings
 from navigation.skills.business import BusinessSkills, NoQuizAvailable
@@ -9,6 +10,7 @@ from navigation.skills.grammar import Grammar
 from navigation.skills.news import NewsLessons
 from utils.deadline import TimeBudgetReached
 from utils.debug import snapshot
+from utils.weighting import weight_for, weighted_order
 
 
 @dataclass
@@ -20,6 +22,8 @@ class Context:
     api: object
     pacing: object
     deadline: object
+    completed_weight: float = settings.COMPLETED_WEIGHT
+    rng: random.Random = field(default_factory=random.Random)
 
 
 # ----------------------------------------------------------------------
@@ -28,13 +32,9 @@ class Context:
 def run_quiz(ctx, open_quiz, label, preloaded_payload=None):
     """Open a quiz, capture its questions and solve it.
 
-    Returns True when the quiz was solved, False when it was skipped
-    (already completed, or questions could not be captured).
+    Completed quizzes are replayed, not skipped. Returns True when the quiz was
+    solved, False when the questions could not be captured.
     """
-    if preloaded_payload and preloaded_payload.get("iscomplete"):
-        print(f"{label}: already completed, skipping.")
-        return False
-
     ctx.quiz_data.arm()
     open_quiz()
 
@@ -47,11 +47,11 @@ def run_quiz(ctx, open_quiz, label, preloaded_payload=None):
         print(f"{label}: could not get the quiz questions, skipping.")
         return False
 
-    if payload.get("iscomplete"):
-        print(f"{label}: already completed, skipping. ({_evidence(payload)})")
-        return False
+    retake = bool(payload.get("iscomplete"))
+    if retake:
+        print(f"{label}: already completed, replaying it. ({_evidence(payload)})")
 
-    ctx.runner.solve(payload)
+    ctx.runner.solve(payload, retake=retake)
     return True
 
 
@@ -90,27 +90,33 @@ def run_grammar(ctx, limit=None):
 
     goto_list()
     total = len(grammar.get_cards())
-    print(f"Found {total} grammar lessons.")
+    completed = [grammar.is_completed(i) for i in range(total)]
+    order = weighted_order(
+        range(total),
+        [weight_for(c, ctx.completed_weight) for c in completed],
+        ctx.rng,
+    )
+    print(
+        f"Found {total} grammar lessons ({sum(completed)} already completed, "
+        f"{len(order)} in the play order)."
+    )
 
     done = skipped = failed = streak = 0
 
-    for index in range(total):
+    for position, index in enumerate(order, start=1):
         if limit is not None and done >= limit:
             break
         if ctx.deadline.expired():
             print("Time budget reached.")
             break
 
-        label = f"Grammar lesson {index + 1}/{total}"
+        replay = " [replay]" if completed[index] else ""
+        label = f"Grammar lesson {index + 1}/{total}{replay} (#{position} in order)"
         print(f"\n--- {label} ---")
         ctx.menu.ensure_window()
 
         try:
             grammar.ensure_open(goto_list)
-            if grammar.is_completed(index):
-                print("Already completed (green check), skipping.")
-                skipped += 1
-                continue
             grammar.select_lesson(index)
             solved = run_quiz(ctx, grammar.open_quiz, label)
             streak = 0
@@ -270,7 +276,7 @@ def run_business(ctx, limit=None):
 # ----------------------------------------------------------------------
 def run_news(ctx, limit=None):
     print("\n=== News-based lessons ===")
-    news = NewsLessons(ctx.driver, ctx.api)
+    news = NewsLessons(ctx.driver, ctx.api, ctx.rng)
 
     ctx.menu.go_home()  # make sure we are on a 7speaking page with a session
 
@@ -287,18 +293,19 @@ def run_news(ctx, limit=None):
             break
 
         try:
-            activity = news.next_activity(attempted)
+            activity = news.next_activity(attempted, ctx.completed_weight)
         except Exception as exc:
             _report(ctx, exc, "news-lookup")
             break
 
         if activity is None:
-            print("No incomplete activity left.")
+            print("No activity left to play.")
             break
 
         activity_id = activity["id"]
         attempted.add(activity_id)  # never retry the same one in this run
-        label = f"Activity {activity_id} ({activity.get('title', 'untitled')})"
+        replay = " [replay]" if news.is_completed(activity) else ""
+        label = f"Activity {activity_id}{replay} ({activity.get('title', 'untitled')})"
         print(f"\n--- {label} ---")
         ctx.menu.ensure_window()
 
@@ -309,6 +316,7 @@ def run_news(ctx, limit=None):
             streak = 0
             if solved:
                 done += 1
+                news.mark_completed(activity_id)
             else:
                 skipped += 1
         except TimeBudgetReached:

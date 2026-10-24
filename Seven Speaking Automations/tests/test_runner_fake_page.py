@@ -154,3 +154,13 @@ def test_no_deadline_never_expires():
 
     d = Deadline(None)
     assert not d.expired() and d.remaining() == float("inf")
+
+
+def test_retake_ignores_saved_answers_and_answers_everything():
+    qs = [choice_q(i, 1) for i in range(1, 4)]
+    for q in qs:
+        q["useranswer"] = "previous"
+    page = FakePage(qs)
+    summary = make_runner(page, wrong=0).solve({"questions": {"data": qs}}, retake=True)
+    assert page.results == [True] * 3
+    assert summary == {"correct": 3, "wrong": 0, "skipped": 0}

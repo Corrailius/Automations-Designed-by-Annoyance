@@ -8,13 +8,20 @@ class Pacing:
     FALLBACK_THINK_RANGE = (3.0, 8.0)
 
     def __init__(
-        self, minutes_per_10, min_think, max_think, rng=None, sleeper=time.sleep
+        self,
+        minutes_per_10,
+        min_think,
+        max_think,
+        rng=None,
+        sleeper=time.sleep,
+        jitter=0.3,
     ):
         self.minutes_per_10 = minutes_per_10
         self.min_think = min_think
         self.max_think = max_think
         self.rng = rng or random.Random()
         self.sleeper = sleeper
+        self.jitter = max(0.0, jitter)
 
     def think_time(self, payload, question_count):
         """Seconds to wait before answering one question."""
@@ -31,7 +38,7 @@ class Pacing:
         else:
             base = self.rng.uniform(*self.FALLBACK_THINK_RANGE)
 
-        base *= self.rng.uniform(0.7, 1.3)
+        base *= self.rng.uniform(1 - self.jitter, 1 + self.jitter)
         return max(self.min_think, min(self.max_think, base))
 
     def wait(self, seconds):

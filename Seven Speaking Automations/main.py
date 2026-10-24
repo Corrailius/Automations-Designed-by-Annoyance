@@ -1,8 +1,6 @@
 import argparse
 import sys
 
-from selenium import webdriver
-
 from authentication.sso import SSO
 from config import settings
 from flows import Context, run_business, run_grammar, run_news
@@ -11,6 +9,7 @@ from quiz.answer_planner import AnswerPlanner
 from quiz.pacing import Pacing
 from quiz.quiz_data import QuizData
 from quiz.quiz_runner import QuizRunner
+from selenium import webdriver
 from utils.deadline import Deadline
 from utils.debug import snapshot
 from utils.seven_api import SevenSpeakingAPI
@@ -43,6 +42,13 @@ def parse_args():
         help="total run time in minutes, e.g. 60 (default: until all work is done)",
     )
     parser.add_argument(
+        "--completed-weight",
+        type=float,
+        default=None,
+        help="weight of already completed lessons vs 1.0 for new ones "
+        "(0 = never replay, 1 = no preference; default: COMPLETED_WEIGHT)",
+    )
+    parser.add_argument(
         "--perfect",
         action="store_true",
         help="never answer wrong on purpose",
@@ -73,7 +79,16 @@ def main():
         settings.QUIZ_MINUTES_PER_10,
         settings.MIN_THINK_SECONDS,
         settings.MAX_THINK_SECONDS,
+        jitter=settings.THINK_JITTER,
     )
+    completed_weight = (
+        settings.COMPLETED_WEIGHT
+        if args.completed_weight is None
+        else max(0.0, args.completed_weight)
+    )
+    for line in settings.describe(wrong, completed_weight):
+        print(line)
+    print()
 
     deadline = Deadline(args.duration)
     if args.duration:
@@ -101,6 +116,7 @@ def main():
             api=SevenSpeakingAPI(driver),
             pacing=pacing,
             deadline=deadline,
+            completed_weight=completed_weight,
         )
 
         names = list(SECTIONS) if args.mode == "all" else [args.mode]
