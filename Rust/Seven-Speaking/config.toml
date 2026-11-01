@@ -1,0 +1,36 @@
+
+[account]
+email = ""
+
+[urls]
+login = "https://user.7speaking.com/"
+home = "https://user.7speaking.com/home"
+document = "https://user.7speaking.com/document/{activity_id}?type=news"
+api = "https://platform.7speaking.com/apiws"
+
+[language]
+interface = "ENG"
+taught = "ENG"
+
+[answer_mix]
+good_answers_per_cycle = 2
+wrong_answers_per_cycle = 1
+
+[lessons]
+completed_weight = 0.2
+
+[pacing]
+quiz_minutes_per_10 = 5.0
+min_think_seconds = 2.0
+max_think_seconds = 25.0
+think_jitter = 0.3
+
+[delays]
+pause_min_seconds = 3.0
+pause_max_seconds = 8.0
+api_min_seconds = 0.8
+api_max_seconds = 1.6
+
+[robustness]
+quiz_payload_timeout = 5
+max_consecutive_failures = 3
